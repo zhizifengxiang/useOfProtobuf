@@ -78,8 +78,65 @@ message Test1 {
 ### 1，signed integers
 如上所示，所有wire-type = 0的类型，都被编码成variant。但是，signed int（sint32, sint64）和 标准int（int32,int64）在encode负数时，有巨大差异。
 
-如果使用int32和int64作为负数类型，则variant总会占用10 byte长度
+如果使用int32和int64作为负数类型，则variant总会占用10 byte长度，并作为一个非常大的unsigned integer。若选择signed type, 得到的variant使用zigzag编码方式，其更高效。
+
+zigzag编码将signed integer映射为unsigned integer，这样绝对值较小的数（如-1），生成的variant的也会很小。所以，-1会被编码为1，而1编码为2， -2编码为3，以此类推。具体见下面表格：
+
+|signed original |encoded As|
+|--|--|
+|0 |0|
+|-1|1|
+|1|2|
+|-2|3|
+|2147483647|4294967294|
+|-2147483648|4294967295|
+
+所以，所有的数n，若为sint32，则：
+
+>(n << 1) ^ (n >> 31)
+
+若为sint64, 则：
+
+> (n << 1) ^ (n >> 63)
+
+上面第二次移位操作，为算数右移，所以，移位后补进来的bit，要不全是0（n为正数），要不全是1（n为负数）。
+
+### 2，non-variant numbers
+non-variant number类型只包含两种：double和fixed64, wire-type为1，告诉parser其需要读取64-bit大小的数据，wire-type=5（float和fixed32）的情形相同，其指出会读取32bit的数据。这两种情况都用小端字节序类存储。
+
+### 3，string
+wire-type=2表示后续variant的长度将会给出。
+
+```
+mesasge Test2 {
+    optional string b = 2;
+}
+// 编码值为：
+12 07 "74 65 73 74 69 6e 67"
+```
+
+上面引号括起来的数字，为UTF-8编码方式的字符串“testing”。
+
+```
+0x12 -> field-number = 2, type = 2
+0x07 -> 表示后面跟有7个字符。
+```
 
 # 5，embedded message
+
+下面利用之前定义的Test1 message，来对Test3进行定义。
+
+```
+message Test3 {
+  optional Test1 c = 3;
+}
+
+// 编码
+1a 03 "08 96 01"
+```
+注意到，引号部分的数值，与之前编码的Test1完全相同（08 96 01），且前面有数字“03”，表示三个字节。嵌套message的处理方式与string的处理方式一致。
+
 # 6，optional and repeated elements
+
+
 # 7，field order
