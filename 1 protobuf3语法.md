@@ -133,13 +133,100 @@ message SearchRequest {
 1. 可以把0当作默认值。
 2. 需要和proto2语法兼容——proto2中，第一个枚举变量的值总为默认值。
 
+可以enum中的每个元素，定义number相同的元素，作为alias，此时需要这是allow_alias，若没指定，则compiler会报错。如下：
 
-### 1 reserved value
+```
+enum EnumAllowAlias {
+  optional allow_alias = true;
+  UNKNOW = 0;
+  STARTED = 1;
+  RUNNING = 1;
+}
+```
+
+枚举类型必须在32-bit范围内，由于enum在传输过程中使用variant encoding，所以使用负数效率较低。enum可以定义在message内外部，若想引用定义在message内部的enum，则MessageType.EnumType.C++中会生成对应的enum类型定义。
+
+反序列化过程中，无法识别的enum值会保存到message中，对于支持open enum type(enum element的实际值是对应语言中的基本值，比如c++中的enum实际上是整数)的语言，如C++和go, 其存储底层的实际整数值。对于close enum type,会提供特殊的accessor来传回对应的整数。无论怎样，这些无法识别的value都会被序列化。
+
+
 # 5 use other message type
+message可以使用定义在当前.proto文件中的其他message。比如：
+
+```
+message SearchRequest {
+  repeated Result results = 1;
+}
+
+message Result {
+  string url = 1;
+  string title = 2;
+  repeated string snippets = 3;
+}
+```
+
 ### 1 import definition
+protobuf支持导入定义在其他proto文件中的message。像下面的import操作不具有传递性，other_protos.proto仅供当前文件import.proto使用。将来一些文件移动位置，则需要修改所有文件的import。所以，我们可以使用import public语句，并建立一个dummy(哑的) proto文件，来充当引用文件的桥梁。
+
+```
+// import.proto
+import "myproject/other_protos.proto"
+
+// new.proto
+// all definition are moved here
+
+// old.proto
+// imported by clients
+import public "new.proto"
+import "other.proto"
+
+// client.proto
+import "old.proto"
+// 使用ole.proto和new.proto，但是不能访问other.proto
+```
+
+compiler会搜索参数-I/ --proto_path后面的路径，来寻找import的proto文件，默认搜索compiler所在的文件。通常--proto_path指向的路径为整个project的根目录，所有的import应该写出完整路径。
+
 ### 2 use proto2 message type
+proto2中的enum不能直接用在proto3的语法中，但是可以用在imported proto2 文件中。
+
 # 6 nested type
+如下定义了嵌套message。
+
+```
+message SearchRequest {
+  message Result {
+    string url = 1;
+    string title = 2;
+    repeated string snippets = 3;
+  }
+  repeated Result results = 1;
+}
+```
+
+若希望在SearchRequest以外使用Result，则语法为：Parent.Type:
+
+```
+message SomeOtherMessage {
+  SearchRequest.Result result = 1;
+}
+```
+message可以任意深度进行嵌套：
+
+```
+message Outer {
+  message Middle {
+    message Inner {
+      int64 val = 1;
+      bool bval = 2;
+    }
+  }
+}
+```
+
 # 7 update a message type
+
+
+
 # 8 unknow field
 # 9 Any
 # 10 Oneof
