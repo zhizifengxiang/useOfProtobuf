@@ -137,6 +137,43 @@ message Test3 {
 注意到，引号部分的数值，与之前编码的Test1完全相同（08 96 01），且前面有数字“03”，表示三个字节。嵌套message的处理方式与string的处理方式一致。
 
 # 6，optional and repeated elements
+在proto2中，repeated元素被编码成若干具有相同field-number的key-value，这些value存放顺序与定义顺序一致，但是交错于其他的field中。相同元素的值之间顺序一致，但是于其他field的位置关系将会丢失。在proto3中，repeated field使用packed encoding。对于proto3中non-repeated field，或者proto2中optional field，某个field number可能有，也可能没有。
 
+通常，一个encoded message不会出现多个repeated-field的情况。但是，parser需要应对这种情况。对于数字或string，若相同field出现多次，则以最后的value为准。对于embedded message, parser合并同意field的多个实例，如同Message::MergeFrom函数的行为——所有singular field会用后值替换前值，singular embedded message merged, repeated field 拼接起来。这样做的效果是，parse两个连续的拼接的message，与先分别parse两个message，在将其合并一样。比如:
+
+```
+MyMessage message;
+message.ParseFromString(str1+str2);
+
+// 等价于
+MyMessage message, message0;
+message.ParseFromString(str1);
+message0.ParseFromString(str2);
+message.MergeFrom(message0);
+```
+此技术合一让在不知道两种类型时，依然可以merge 两个message 。
+
+### 1，packed repeated fields
+2.1版本引入了packet repeated field, proto2中需要针对repeated增加选项[packed = true]。在proto3中，scalar numeric type默认为packed，其行为类似repeated field, 但是编码方式不同。packed repeated field不包含在message中，所有元素都会被打包在一个key-value中，以wire-type=2的形式存储（length-delimited）。比如：
+
+```
+message Test4 {
+  repeated int32 d = 4 [packed=true];
+}
+```
+为上面的field d赋值为3270 和86942，则编码为：
+
+```
+22        // key (field number 4, wire type 2)
+06        // payload size (6 bytes)
+03        // first element (varint 3)
+8E 02     // second element (varint 270)
+9E A7 05  // third element (varint 86942)
+```
+
+只有primitive numeric type（variant, 32-bit, 64-bit）才能声明为packed。尽管repeated packed不能拥有多个key-value，但是encoder需要为此做好准备，在这种情况下，加载需要连续进行，并将所有的element都包含进来。protobuf 的parser需要能够同没有packed一样，来处理packed。这保证[packed=true]前后兼容。
 
 # 7，field order
+在.proto文件中，我们可以让field number以任意顺序出现，当message被序列化是，field number按顺序写入。这样会让优化依赖于field number的顺序。protobuf 的parser应该以任意顺序来处理field，因为并不是所有message都是顺序被创建——比如，有时需要merger两个message，仅仅是concatenate他们。
+
+如果message有一个unknow field， c++中的是现实，在顺序排序的known-field后面，以任意顺序写入这些unknow field。python不支持跟踪unknow field。

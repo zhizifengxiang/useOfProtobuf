@@ -1,4 +1,4 @@
-#1 define message type
+# 1 define message type
 首先定义一个简单的message结构，其包含如下三个字段：查询字符串、页号、每页中结果数量。下面是.proto文件中message定义：
 
 ```
@@ -10,23 +10,41 @@ message SearchRequest {
   int32 result_per_page = 3;
 }
 ```
-###1 assign field number
+
+### 1 specify field type
+### 2 assign field number
 每个至少有三部分组成：类型（scaler-type, enum, message）、名称、数字。
 
 其中，每个field的数字独一无二，其用于在message binary format中标识该字段，一旦使用某个数字，其他field就不能再用该数字。[1-15]表示使用1 byte来编码，
+### 3 specify field rule
+### 4 add more message type
+### 5 add comment
+### 6 reserve field
+### 7 what's generate from .proto
 
-#2 scaler value type
-#3 default values
-#4 enumeration
-#5 use other message type
-#6 nested type
-#7 update a message type
-#8 unknow field
-#9 Any
-#10 Oneof
-#11 Maps
-#12 Packages
-#13 define service
-#14 json mapping
-#15 options
-#16 generate your class
+
+# 2 scaler value type
+# 3 default values
+# 4 enumeration
+### 1 reserved value
+# 5 use other message type
+### 1 import definition
+### 2 use proto2 message type
+# 6 nested type
+# 7 update a message type
+# 8 unknow field
+# 9 Any
+# 10 Oneof
+### 1 use
+### 2 feature
+### 3 向后兼容
+# 11 Maps
+### 1 向后兼容
+# 12 Packages
+### 1 package and name resolution
+# 13 define service
+# 14 json mapping
+### 1 json options
+# 15 options
+### 1 custom options
+# 16 generate your class
